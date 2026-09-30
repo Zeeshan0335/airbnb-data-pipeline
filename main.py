@@ -3,7 +3,7 @@ from urllib.parse import quote
 import os, re, json, traceback, pandas as pd
 from collections import defaultdict
 from datetime import datetime
-
+from pymongo import MongoClient
 
 # =====================================================
 # TEXT PARSERS
@@ -1023,8 +1023,12 @@ def extract_location_and_transport(description):
         )
     )
 
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_DB = os.getenv("MONGODB_DB", "airbnb_db")
+MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "listings")
 
 AIRBNB_URL = "https://www.airbnb.com"
+
 
 SCREENSHOT_DIR = "screenshots"
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
@@ -1116,7 +1120,7 @@ def open_airbnb(playwright):
     log("Launching browser")
 
     browser = playwright.chromium.launch(
-        headless=False,
+        headless=True,
         slow_mo=500
     )
 
@@ -1158,55 +1162,36 @@ def open_airbnb(playwright):
 
     return browser, page
 
+def save_to_mongodb(results):
+    if not MONGODB_URI:
+        log("MONGODB_URI not set — skipping MongoDB save.")
+        return
+    if not results:
+        log("No results to save to MongoDB.")
+        return
+    try:
+        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=8000)
+        collection = client[MONGODB_DB][MONGODB_COLLECTION]
+        collection.insert_many(results)
+        log(f"Saved {len(results)} listings to MongoDB ({MONGODB_DB}.{MONGODB_COLLECTION})")
+    except Exception as e:
+        log(f"MongoDB save failed: {e}")
 
 # =====================================================
 # Inputs
 # =====================================================
 
 def collect_user_inputs():
-
-    destination = input("Destination: ")
-
-    checkin = input(
-        "Check-in (YYYY-MM-DD): "
-    )
-
-    checkout = input(
-        "Check-out (YYYY-MM-DD): "
-    )
-
-    max_pages = int(
-        input(
-         "How many result pages to scrape? " )
-    )
-
-    adults = int(
-        input("Adults: ")
-    )
-
-    children = int(
-        input("Children: ")
-    )
-
-    infants = int(
-        input("Infants: ")
-    )
-
-    pets = int(
-        input("Pets: ")
-    )
-    
     return {
-        "destination": destination,
-        "checkin": checkin,
-        "checkout": checkout,
-        "max_pages": max_pages,
-        "adults": adults,
-        "children": children,
-        "infants": infants,
-        "pets": pets
+        "destination": os.getenv("DESTINATION", "New York"),
+        "checkin": os.getenv("CHECKIN", "2026-10-01"),
+        "checkout": os.getenv("CHECKOUT", "2026-10-05"),
+        "max_pages": int(os.getenv("MAX_PAGES", "1")),
+        "adults": int(os.getenv("ADULTS", "1")),
+        "children": int(os.getenv("CHILDREN", "0")),
+        "infants": int(os.getenv("INFANTS", "0")),
+        "pets": int(os.getenv("PETS", "0")),
     }
-
 # =====================================================
 # URL Builder
 # =====================================================
@@ -1846,6 +1831,8 @@ def main():
             print(
                 "CSV saved: airbnb_results.csv"
             )
+            save_to_mongodb(results)
+
 
 
             print(
@@ -1853,9 +1840,8 @@ def main():
                 f"{len(results)}"
             )
 
-            input(
-                "\nPress ENTER to close browser..."
-            )
+            
+            
         except Exception as e:
 
             print("\nERROR:")
