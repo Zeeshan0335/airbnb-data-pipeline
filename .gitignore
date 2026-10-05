@@ -18,3 +18,7 @@ search_page.html
 
 #Screenshorts
 *.screenshots
+
+failed_*.txt
+failed_page_*.txt
+amenities_modal.html

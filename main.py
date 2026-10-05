@@ -4,6 +4,7 @@ import os, re, json, traceback, pandas as pd
 from collections import defaultdict
 from datetime import datetime
 from pymongo import MongoClient
+from datetime import datetime, timedelta
 
 # =====================================================
 # TEXT PARSERS
@@ -1119,10 +1120,12 @@ def open_airbnb(playwright):
 
     log("Launching browser")
 
+   
     browser = playwright.chromium.launch(
-        headless=True,
-        slow_mo=500
+      headless=False,
+      slow_mo=500
     )
+    
 
     context = browser.new_context()
 
@@ -1182,19 +1185,34 @@ def save_to_mongodb(results):
 # =====================================================
 
 def collect_user_inputs():
+    # Dynamic default dates — always valid, never stale
+    default_checkin = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
+    default_checkout = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
+
+    # Automated mode: DESTINATION env var is set (by the task definition)
+    if os.getenv("DESTINATION"):
+        return {
+            "destination": os.getenv("DESTINATION"),
+            "checkin": os.getenv("CHECKIN", default_checkin),
+            "checkout": os.getenv("CHECKOUT", default_checkout),
+            "max_pages": int(os.getenv("MAX_PAGES", "1")),
+            "adults": int(os.getenv("ADULTS", "1")),
+            "children": int(os.getenv("CHILDREN", "0")),
+            "infants": int(os.getenv("INFANTS", "0")),
+            "pets": int(os.getenv("PETS", "0")),
+        }
+
+    # Interactive mode: ask the user
     return {
-        "destination": os.getenv("DESTINATION", "New York"),
-        "checkin": os.getenv("CHECKIN", "2026-10-01"),
-        "checkout": os.getenv("CHECKOUT", "2026-10-05"),
-        "max_pages": int(os.getenv("MAX_PAGES", "1")),
-        "adults": int(os.getenv("ADULTS", "1")),
-        "children": int(os.getenv("CHILDREN", "0")),
-        "infants": int(os.getenv("INFANTS", "0")),
-        "pets": int(os.getenv("PETS", "0")),
-    }
-# =====================================================
-# URL Builder
-# =====================================================
+        "destination": input("Destination: "),
+        "checkin": input(f"Check-in (YYYY-MM-DD) [{default_checkin}]: ") or default_checkin,
+        "checkout": input(f"Check-out (YYYY-MM-DD) [{default_checkout}]: ") or default_checkout,
+        "max_pages": int(input("How many result pages to scrape? ") or "1"),
+        "adults": int(input("Adults: ") or "1"),
+        "children": int(input("Children: ") or "0"),
+        "infants": int(input("Infants: ") or "0"),
+        "pets": int(input("Pets: ") or "0"),
+    }# =====================================================
 
 def build_airbnb_url(user_data):
 

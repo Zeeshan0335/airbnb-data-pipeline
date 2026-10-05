@@ -1,0 +1,9 @@
+.venv/
+.vscode/
+__pycache__/
+*.pyc
+*.csv
+*.json
+search_page.html
+screenshots/
+.git/
